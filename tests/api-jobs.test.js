@@ -25,8 +25,17 @@ let idForElimination = mongoose.Types.ObjectId();
 let invalidId = mongoose.Types.ObjectId();
 
 before(async() => {
+    const userForDelete = new User({
+        name: "userForDelete",
+        email: "userfordelete@gmail.com",
+        password: "123456",
+        IsAdmin: false,
+    })
     await User.deleteMany({});
     await Job.deleteMany({});
+    await User.create(userForDelete);
+    const thisUser = await User.findOne({ name: "userForDelete" });
+    idForElimination = thisUser._id;
 });
 describe("Testing NOT FOUND ROUTE =>>", () => {
     it("should return <NotFoundError> when the route is invalid", (done) => {
@@ -42,7 +51,7 @@ describe("Testing NOT FOUND ROUTE =>>", () => {
         done();
     });
 });
-describe("Testing Admin/User Register =>>", () => {
+describe("Testing Admin/Register and all procedures after Registration =>>", () => {
     it("should return <StatusCodes_OK> when <user admin> is created", (done) => {
         agent
             .post("/api/v1/auth/register")
@@ -52,7 +61,7 @@ describe("Testing Admin/User Register =>>", () => {
                 done();
             });
     });
-    it("should return <BadRequestError> and a below message when user its trying to created with one email that already exist in DB", (done) => {
+    it("should return <BadRequestError> when trying to create user with the same email", (done) => {
         agent
             .post("/api/v1/auth/register")
             .send(users[1])
@@ -64,7 +73,7 @@ describe("Testing Admin/User Register =>>", () => {
                 done();
             });
     });
-    it("should return <BadRequestError> and a below message when user its trying to created with confused email", (done) => {
+    it("should return <BadRequestError> when trying to create user with confused email", (done) => {
         agent
             .post("/api/v1/auth/register")
             .send(users[2])
@@ -74,7 +83,7 @@ describe("Testing Admin/User Register =>>", () => {
                 done();
             });
     });
-    it("should return <BadRequestError> and a below message when user its trying to created with invalid length password", (done) => {
+    it("should return <BadRequestError> when trying to create user with wrong length password", (done) => {
         agent
             .post("/api/v1/auth/register")
             .send(users[3])
@@ -86,19 +95,7 @@ describe("Testing Admin/User Register =>>", () => {
                 done();
             });
     });
-    it("should return <StatusCodes_OK> when <normal user> is created", (done) => {
-        agent
-            .post("/api/v1/auth/register")
-            .send(users[4])
-            .end((err, res) => {
-                expect(res.status).to.equal(200);
-                done();
-            });
-    });
-});
-
-describe("Testing User Login =>>", () => {
-    it("should return <StatusCodes_OK> when <admin user> is login after registration", (done) => {
+    it("should return <OK> when <admin user> is login after registration", (done) => {
         agent
             .post("/api/v1/auth/login")
             .send({ email: users[0].email, password: users[0].password })
@@ -108,14 +105,160 @@ describe("Testing User Login =>>", () => {
                 done();
             });
     });
-    it("should return <StatusCodes_OK> when <normal user> is login after registration", (done) => {
+
+    //
+    describe("Testing User/Admin Roles into users collection in db=>>", () => {
+        before(async() => {
+            userDocuments = await User.find({});
+        });
+        it("should return <UnauthenticatedError> when <admin user> get all users in db with bad credentials", (done) => {
+            agent
+                .get("/api/v1/auth")
+                .set("Authorization", `Bearer ${tokenFake}`)
+                .end((err, res) => {
+                    expect(res.status).to.equal(401);
+                    expect(res.body.msg).to.equal("Authentication Invalid...!!!");
+                    done();
+                });
+        });
+        it("should return <OK> when <admin user> get all users in db", (done) => {
+            agent
+                .get("/api/v1/auth")
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .end((err, res) => {
+                    expect(res.status).to.equal(200);
+                    expect(res.body).to.be.an("object");
+                    expect(res.body.No_Users).to.equal(userDocuments.length);
+                    done();
+                });
+        });
+        it("should return <NotFoundError> when <admin user> delete one user by invalid id", (done) => {
+            agent
+                .delete(`/api/v1/auth/delete/${invalidId}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .end((err, res) => {
+                    expect(res.status).to.equal(404);
+                    expect(res.body.msg).to.equal(`No user in DB with this id...!!!`);
+                    done();
+                });
+        });
+        it("should return <OK> when <admin user> delete one user by id", (done) => {
+            agent
+                .delete(`/api/v1/auth/delete/${idForElimination}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .end((err, res) => {
+                    expect(res.status).to.equal(200);
+                    expect(res.body.msg).to.equal("User deleted...!!!");
+                    done();
+                });
+        });
+    });
+    it("should return <OK> when <admin user> with credentials create a job", (done) => {
+        agent
+            .post("/api/v1/jobs")
+            .set("Authorization", `Bearer ${tokenAdmin}`)
+            .send(adminJobs[0])
+            .expect(200)
+            .end((err, res) => {
+                expect(res.body).to.not.be.empty;
+                expect(res.body).to.be.an("object");
+                done();
+            });
+    });
+    //
+    describe("Testing Jobs/Update/Delete/Get By Admin in db=>>", () => {
+        before(async() => {
+            jobsDocuments = await Job.find({ emailOfCreator: users[0].email });
+        });
+        it("should return <CREATED> when <admin user> with credentials update a job", (done) => {
+            agent
+                .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .send(updateAdminJobs[0])
+                .end((err, res) => {
+                    expect(res.status).to.equal(201);
+                    expect(res.body.updatedJob).to.deep.include(updateAdminJobs[0]);
+                    done();
+                });
+        });
+        it("should return <BadRequestError> when <admin user> with credentials update a bad job v1", (done) => {
+            const badJob = {
+                company: "BADCOMPANY",
+                position: ""
+            }
+            agent
+                .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .send(badJob)
+                .end((err, res) => {
+                    expect(res.status).to.equal(400);
+                    expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
+                    done();
+                });
+        });
+        it("should return <BadRequestError> when <admin user> with credentials update a bad job v2", (done) => {
+            const badJob = {
+                company: "",
+                position: "badposition"
+            }
+            agent
+                .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .send(badJob)
+                .end((err, res) => {
+                    expect(res.status).to.equal(400);
+                    expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
+                    done();
+                });
+        });
+        it("should return <BadRequestError> when <admin user> with credentials update a bad job v3", (done) => {
+            const badJob = {}
+            agent
+                .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .send(badJob)
+                .end((err, res) => {
+                    expect(res.status).to.equal(400);
+                    expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
+                    done();
+                });
+        });
+        it("should return <BadRequestError> when <admin user> with credentials update a bad job v3", (done) => {
+            const badJob = {}
+            agent
+                .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
+                .set("Authorization", `Bearer ${tokenAdmin}`)
+                .send(badJob)
+                .end((err, res) => {
+                    expect(res.status).to.equal(400);
+                    expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
+                    done();
+                });
+        });
+    });
+});
+
+
+
+describe("Testing User/Register and all procedures after Registration =>>", () => {
+    it("should return <OK> when <normal user> is created", (done) => {
+        agent
+            .post("/api/v1/auth/register")
+            .send(users[4])
+            .end((err, res) => {
+                expect(res.status).to.equal(200);
+                done();
+            });
+    });
+    it("should return <OK> when <normal user> is login after registration", (done) => {
         agent
             .post("/api/v1/auth/login")
             .send({ email: users[4].email, password: users[4].password })
             .end((err, res) => {
                 tokenUser = res.body.token; //catch the token for future use
-                idForElimination = mongoose.Types.ObjectId(res.body.user.id); //catch the email for future use
                 expect(res.status).to.equal(200);
+                expect(res.body.token).to.be.a("string");
+                expect(res.body.user).to.be.an("object");
                 done();
             });
     });
@@ -125,6 +268,7 @@ describe("Testing User Login =>>", () => {
             .send({ email: users[5].email, password: users[5].password })
             .end((err, res) => {
                 expect(res.status).to.equal(401);
+                expect(res.body).to.be.an("object");
                 expect(res.body.msg).to.equal(
                     "Invalid email or not register yet...!!!"
                 );
@@ -137,6 +281,7 @@ describe("Testing User Login =>>", () => {
             .send({ email: "", password: "" })
             .end((err, res) => {
                 expect(res.status).to.equal(400);
+                expect(res.body).to.be.an("object");
                 expect(res.body.msg).to.equal(
                     "Please provide email and password...!!!"
                 );
@@ -146,37 +291,11 @@ describe("Testing User Login =>>", () => {
     it("should return <UnauthenticatedError> when <the user> is login with wrong password", (done) => {
         agent
             .post("/api/v1/auth/login")
-            .send({ email: users[0].email, password: "wrongpassword" })
+            .send({ email: users[4].email, password: "wrongpassword" })
             .end((err, res) => {
                 expect(res.status).to.equal(401);
-                expect(res.body.msg).to.equal("Invalid password...!!!");
-                done();
-            });
-    });
-});
-
-describe("Testing User/Admin Roles into users collection in db=>>", () => {
-    before(async() => {
-        userDocuments = await User.find({});
-    });
-    it("should return <UnauthenticatedError> when <admin user> get all users in db with bad credentials", (done) => {
-        agent
-            .get("/api/v1/auth")
-            .set("Authorization", `Bearer ${tokenFake}`)
-            .end((err, res) => {
-                expect(res.status).to.equal(401);
-                expect(res.body.msg).to.equal("Authentication Invalid...!!!");
-                done();
-            });
-    });
-    it("should return <StatusCodes_OK> when <admin user> get all users in db", (done) => {
-        agent
-            .get("/api/v1/auth")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .end((err, res) => {
-                expect(res.status).to.equal(200);
                 expect(res.body).to.be.an("object");
-                expect(res.body.No_Users).to.equal(userDocuments.length);
+                expect(res.body.msg).to.equal("Invalid password...!!!");
                 done();
             });
     });
@@ -204,50 +323,16 @@ describe("Testing User/Admin Roles into users collection in db=>>", () => {
                 done();
             });
     });
-    it("should return <NotFoundError> when <admin user> delete one user by invalid id", (done) => {
-        agent
-            .delete(`/api/v1/auth/delete/${invalidId}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .end((err, res) => {
-                expect(res.status).to.equal(404);
-                expect(res.body.msg).to.equal(`No user in DB with this id...!!!`);
-                done();
-            });
-    });
-    it("should return <OK> when <admin user> delete one user by id", (done) => {
-        agent
-            .delete(`/api/v1/auth/delete/${idForElimination}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .end((err, res) => {
-                expect(res.status).to.equal(200);
-                expect(res.body.msg).to.equal("User deleted...!!!");
-                done();
-            });
-    });
-});
-
-describe("Testing Jobs/Create in db=>>", () => {
-    it("should return <OK> when <admin user> with credentials create a job", (done) => {
-        agent
-            .post("/api/v1/jobs")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(adminJobs[0])
-            .expect(200)
-            .end((err, res) => {
-                expect(res.body).to.not.be.empty;
-                expect(res.body).to.be.an("object");
-                done();
-            });
-    });
     it("should return <OK> when <normal user> with credentials create a job", (done) => {
         agent
             .post("/api/v1/jobs")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
+            .set("Authorization", `Bearer ${tokenUser}`)
             .send(userJobs[0])
             .expect(200)
             .end((err, res) => {
                 expect(res.body).to.not.be.empty;
                 expect(res.body).to.be.an("object");
+                expect(res.body.newJob).to.deep.include(userJobs[0]);
                 done();
             });
     });
@@ -258,10 +343,11 @@ describe("Testing Jobs/Create in db=>>", () => {
         };
         agent
             .post("/api/v1/jobs")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
+            .set("Authorization", `Bearer ${tokenUser}`)
             .send(badJob)
             .end((err, res) => {
                 expect(res.status).to.equal(400);
+                expect(res.body).to.be.an("object");
                 expect(res.body.msg).to.equal(
                     "Please provide company name. Please provide position"
                 );
@@ -276,10 +362,11 @@ describe("Testing Jobs/Create in db=>>", () => {
         };
         agent
             .post("/api/v1/jobs")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
+            .set("Authorization", `Bearer ${tokenUser}`)
             .send(badJob)
             .end((err, res) => {
                 expect(res.status).to.equal(400);
+                expect(res.body).to.be.an("object");
                 expect(res.body.msg).to.equal(
                     "Please provide position. Please provide company name"
                 );
@@ -293,10 +380,11 @@ describe("Testing Jobs/Create in db=>>", () => {
         };
         agent
             .post("/api/v1/jobs")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
+            .set("Authorization", `Bearer ${tokenUser}`)
             .send(badJob)
             .end((err, res) => {
                 expect(res.status).to.equal(400);
+                expect(res.body).to.be.an("object");
                 expect(res.body.msg).to.equal("Please provide position");
                 done();
             });
@@ -308,101 +396,43 @@ describe("Testing Jobs/Create in db=>>", () => {
         };
         agent
             .post("/api/v1/jobs")
-            .set("Authorization", `Bearer ${tokenAdmin}`)
+            .set("Authorization", `Bearer ${tokenUser}`)
             .send(badJob)
             .end((err, res) => {
                 expect(res.status).to.equal(400);
+                expect(res.body).to.be.an("object");
                 expect(res.body.msg).to.equal("Please provide company name");
                 done();
             });
     });
+
+    describe("Testing Jobs/Update/By User in db=>>", () => {
+        before(async() => {
+            jobsDocuments = await Job.find({ emailOfCreator: users[4].email });
+        });
+        it("should return <CREATED> when <normal user> with credentials update a job", (done) => {
+            agent
+                .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
+                .set("Authorization", `Bearer ${tokenUser}`)
+                .send(updateUserJobs[0])
+                .end((err, res) => {
+                    expect(res.status).to.equal(201);
+                    expect(res.body).to.be.an("object");
+                    expect(res.body.updatedJob).to.deep.include(updateUserJobs[0]);
+                    done();
+                });
+        });
+    });
+
 });
-describe("Testing Jobs/Update/Delete/Get By Admin in db=>>", () => {
-    before(async() => {
-        jobsDocuments = await Job.find({ emailOfCreator: users[0].email });
-    });
-    it("should return <CREATED> when <admin user> with credentials update a job", (done) => {
-        agent
-            .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(updateAdminJobs[0])
-            .end((err, res) => {
-                expect(res.status).to.equal(201);
-                expect(res.body.updatedJob).to.deep.include(updateAdminJobs[0]);
-                done();
-            });
-    });
-    it("should return <BadRequestError> when <admin user> with credentials update a bad job v1", (done) => {
-        const badJob = {
-            company: "BADCOMPANY",
-            position: ""
-        }
-        agent
-            .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(badJob)
-            .end((err, res) => {
-                expect(res.status).to.equal(400);
-                expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
-                done();
-            });
-    });
-    it("should return <BadRequestError> when <admin user> with credentials update a bad job v2", (done) => {
-        const badJob = {
-            company: "",
-            position: "badposition"
-        }
-        agent
-            .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(badJob)
-            .end((err, res) => {
-                expect(res.status).to.equal(400);
-                expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
-                done();
-            });
-    });
-    it("should return <BadRequestError> when <admin user> with credentials update a bad job v3", (done) => {
-        const badJob = {}
-        agent
-            .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(badJob)
-            .end((err, res) => {
-                expect(res.status).to.equal(400);
-                expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
-                done();
-            });
-    });
-    it("should return <BadRequestError> when <admin user> with credentials update a bad job v3", (done) => {
-        const badJob = {}
-        agent
-            .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(badJob)
-            .end((err, res) => {
-                expect(res.status).to.equal(400);
-                expect(res.body.msg).to.equal("Company and Position fields cannot by empty...!!!");
-                done();
-            });
-    });
-});
-describe("Testing Jobs/Update/By User in db=>>", () => {
-    before(async() => {
-        jobsDocuments = await Job.find({ emailOfCreator: users[0].email });
-    });
-    it("should return <CREATED> when <normal user> with credentials update a job", (done) => {
-        agent
-            .patch(`/api/v1/jobs/${jobsDocuments[0]._id}`)
-            .set("Authorization", `Bearer ${tokenAdmin}`)
-            .send(updateUserJobs[0])
-            .end((err, res) => {
-                expect(res.status).to.equal(201);
-                expect(res.body.updatedJob).to.deep.include(updateUserJobs[0]);
-                done();
-            });
-    });
-});
+
+
+
+
+
+
+
+
 
 // NO FINISHED YET....
 // SOME TROUBLES WITH THE USER TOKEN
