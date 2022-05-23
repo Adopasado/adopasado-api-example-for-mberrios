@@ -1,0 +1,317 @@
+openapi: 3.0.0
+info:
+  title: AdoPas_JOBS_API
+  description: Easy example about APIs REST with MongoDB/Node/Express
+  contact:
+    name: Adonis Sánchez Quintana
+    email: metafamily86@gmail.com
+  version: '1.0'
+servers:
+  - url: https://adopas-jobs-api.herokuapp.com/api/v1
+    variables: {}
+paths:
+  /auth/register:
+    post:
+      tags:
+        - User
+      summary: Register user
+      operationId: Registeruser
+      parameters: []
+      requestBody:
+        description: ''
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisteruserRequest'
+            example:
+              name: adopas
+              email: adopas@gmail.com
+              password: '123456'
+        required: true
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security: []
+  /auth/login:
+    post:
+      tags:
+        - User
+      summary: Login user
+      operationId: Loginuser
+      parameters: []
+      requestBody:
+        description: ''
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginuserRequest'
+            example:
+              email: adopas@gmail.com
+              password: '123456'
+        required: true
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security: []
+  /jobs:
+    post:
+      tags:
+        - Job
+      summary: Create job
+      operationId: Createjob
+      parameters: []
+      requestBody:
+        description: ''
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatejobRequest'
+            example:
+              company: google
+              position: back end developer
+        required: true
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+    get:
+      tags:
+        - Job
+      summary: Get all jobs
+      operationId: Getalljobs
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /jobs/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The job ID
+    patch:
+      tags:
+        - Job
+      summary: Update job by id
+      operationId: Updatejobbyid
+      parameters: []
+      requestBody:
+        description: ''
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatejobbyidRequest'
+            example:
+              name: linkn
+              position: administrator
+        required: true
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /jobs/byid/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The job ID
+    get:
+      tags:
+        - Job
+      summary: Get job by id
+      operationId: Getjobbyid
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /jobs/delete/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The job ID
+    delete:
+      tags:
+        - Job
+      summary: Delete job by id
+      operationId: Deletejobbyid
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /jobs/byuser/delete_alls:
+    delete:
+      tags:
+        - Job
+      summary: Delete all jobs
+      operationId: Deletealljobs
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /auth/delete/{id}:
+    parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+        description: The user email
+    delete:
+      tags:
+        - Admin
+      summary: Delete user by email
+      operationId: Deleteuserbyemail
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /jobs/delete_alls:
+    delete:
+      tags:
+        - Admin
+      summary: Delete all jobs
+      operationId: Deletealljobs1
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /auth:
+    get:
+      tags:
+        - Admin
+      summary: Get all users
+      operationId: Getallusers
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+  /jobs/admin:
+    get:
+      tags:
+        - Admin
+      summary: Get all jobs
+      operationId: Getalljobs1
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          headers: {}
+      deprecated: false
+      security:
+        - bearer: []
+components:
+  schemas:
+    RegisteruserRequest:
+      title: RegisteruserRequest
+      required:
+        - name
+        - email
+        - password
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+      example:
+        name: adopas
+        email: adopas@gmail.com
+        password: '123456'
+    LoginuserRequest:
+      title: LoginuserRequest
+      required:
+        - email
+        - password
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      example:
+        email: adopas@gmail.com
+        password: '123456'
+    CreatejobRequest:
+      title: CreatejobRequest
+      required:
+        - company
+        - position
+      type: object
+      properties:
+        company:
+          type: string
+        position:
+          type: string
+      example:
+        company: google
+        position: back end developer
+    UpdatejobbyidRequest:
+      title: UpdatejobbyidRequest
+      required:
+        - name
+        - position
+      type: object
+      properties:
+        name:
+          type: string
+        position:
+          type: string
+      example:
+        name: linkn
+        position: administrator
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+security: []
+tags:
+  - name: User
+  - name: Job
+  - name: Admin
